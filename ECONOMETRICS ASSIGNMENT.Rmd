@@ -1,0 +1,195 @@
+---
+title: "Corporate Governance"
+author: "Arunendu (10)"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# ARUNENDU BIKAS CHAKI 251260250010
+
+df <- read.csv(choose.files())
+View(df)
+```
+```{r}
+ install.packages("readr")
+ install.packages("dplyr")
+ install.packages("lmtest")
+ install.packages("car")
+```
+```{r}
+df <- read.csv('corporate_governance.csv')
+print("Clean Data:")
+```
+```{r create-dummies}
+ df <- read.csv('corporate_governance.csv', stringsAsFactors = FALSE)
+print(colnames(df))
+df_clean <- df %>%
+  rename(
+    Firm = FIRM,
+    ROA_str = ROA..Approx.,
+    Board_Size = BoardSize,
+    Indep_Percent_str = Independent.Directors.,
+    Audit_Meetings = Audit.Committee.Meetings
+  ) %>%
+  mutate(
+    ROA = as.numeric(gsub("%", "", ROA_str)),
+    Indep_Percent = as.numeric(gsub("%", "", Indep_Percent_str))
+  ) %>%
+  select(Firm, ROA, Board_Size, Indep_Percent, Audit_Meetings) %>%
+   na.omit()
+print("Clean Data:")
+head(df_clean)
+```
+
+```{r create-dummies}
+df_clean <- df_clean %>%
+  mutate(
+    High_Indep = ifelse(Indep_Percent >= 50, 1, 0),
+    Many_Meetings = ifelse(Audit_Meetings > 4, 1, 0)
+  )
+
+print("Data with Dummies:")
+head(df_clean)
+```
+Now we will run our 6 regression models to test our theories. Our dependent variable (what we want to explain) is `ROA`.
+
+MODEL 1
+ROA vs. Board Size
+This model asks a simple question: **"Does a bigger board relate to higher or lower ROA?"**
+```{r }
+m1 <- lm(ROA ~ Board_Size, data = df_clean)
+summary(m1) 
+```
+Interpretation:
+The intercept (7.65) suggests that when the board size is zero (a hypothetical case), the firm’s ROA would be around 7.65%.
+The coefficient of Board_Size (−0.0994) indicates a slight negative relationship — for each additional board member, the ROA decreases by about 0.1 percentage points on average.
+
+Statistical Significance:
+The p-value (0.832) is much greater than 0.05, meaning the effect of board size on ROA is not statistically significant.
+The R-squared (0.0016) means the model explains only 0.16% of the variation in ROA — essentially no explanatory power.
+
+Model 2: 
+ROA vs. Percent of Independent Directors
+This model asks: "Does having more independent directors relate to higher or lower ROA?"
+```{r}
+m2 <- lm(ROA ~ Indep_Percent, data = df_clean)
+summary(m2)
+```
+Interpretation:
+The intercept (10.97) indicates that if the percentage of independent directors were zero (hypothetically), the firm’s ROA would be about 10.97%.
+The coefficient for Indep_Percent (−0.0855) shows a small negative relationship — as the proportion of independent directors increases by 1%, the ROA decreases by about 0.086 percentage points on average.
+
+Statistical Significance:
+The p-value (0.714) is far above 0.05, so this relationship is not statistically significant.
+The R-squared (0.0049) means the model explains less than 1% of the variation in ROA, indicating very poor explanatory power.
+
+Model 3: 
+The Full Model
+This model asks:"What is the effect of all three variables (Board Size, Independence, and Meetings) on ROA at the same time?"
+```{r}
+m3 <- lm(ROA ~ Board_Size + Indep_Percent + Audit_Meetings, data = df_clean)
+summary(m3)
+```
+Interpretation: This is a stronger model. It tells you the effect of `Board_Size` while holding the other two variables constant.
+Intercept (3.96):
+When board size, independence percentage, and audit meetings are zero (hypothetically), ROA would be around 3.96%.
+Board_Size (0.178, p = 0.721):
+A small positive but insignificant effect — changes in board size do not significantly affect ROA.
+Indep_Percent (0.108, p = 0.672):
+A positive but insignificant relationship — a higher percentage of independent directors does not have a statistically significant impact on profitability.
+Audit_Meetings (−0.852, p = 0.035):
+This coefficient is negative and statistically significant at the 5% level.
+→ It suggests that more frequent audit committee meetings are associated with lower ROA, possibly due to increased monitoring during periods of weaker performance.
+
+Model Fit:
+R² = 0.1685: The model explains about 16.9% of the variation in ROA.
+Adjusted R² = 0.0726: After accounting for the number of predictors, only about 7% of variation is explained.
+F-statistic (p = 0.180): The overall model is not statistically significant.
+
+
+Model 4 :- 
+The "Curvy" Model (Quadratic)
+This model tests a theory: "Is there an 'optimal' board size?" Maybe ROA goes up as boards get bigger, but then goes down if they get too big. This tests for an "inverted U-shape".
+```{r}
+m4 <- lm(ROA ~ Board_Size + I(Board_Size^2) + Indep_Percent + Audit_Meetings, data = df_clean)
+summary(m4)
+```
+Interpretation: The model explores how board size (including its squared term), the percentage of independent directors, and the number of audit meetings affect a firm’s profitability (ROA).
+The coefficients of Board_Size (−5.93) and Board_Size² (0.27) suggest a U-shaped relationship between board size and ROA — profitability initially falls as board size increases, but beyond a certain point, larger boards may improve performance. However, both effects are not statistically significant (p > 0.1).
+Indep_Percent (0.11, p = 0.66) shows a weak and insignificant positive relationship with ROA.
+Audit_Meetings (−0.71, p = 0.075) is negative and marginally significant, implying that firms holding more audit meetings tend to have slightly lower profitability, possibly due to greater scrutiny during weaker financial performance.
+The model explains about 24.6% of the variation in ROA (R² = 0.2456), but the overall model is not statistically significant (p = 0.12).
+
+Model 5:  
+The Dummy Variable Model
+This model asks: "Does simply meeting the 50% independence threshold matter, rather than the exact percentage?"
+```{r}
+m5 <- lm(ROA ~ Board_Size + High_Indep + Audit_Meetings, data = df_clean)
+summary(m5)
+```
+Interpretation:
+Intercept (13.31, p = 0.064):
+When all other variables are zero, the expected ROA is around 13.3%, though this is only marginally significant.
+Board_Size (−0.079, p = 0.878):
+The effect of board size on ROA is negative but statistically insignificant, suggesting that changes in board size do not meaningfully influence profitability.
+High_Indep (−1.88, p = 0.513):
+Firms with at least 50% independent directors have, on average, a 1.88 percentage point lower ROA, but this result is not statistically significant.
+Audit_Meetings (−0.758, p = 0.041):
+The number of audit meetings shows a negative and statistically significant relationship with ROA at the 5% level.
+→ This indicates that firms holding more audit meetings tend to have lower profitability, possibly because frequent meetings occur when performance issues or risks arise.
+
+Model Fit:
+R² = 0.1766: The model explains about 17.7% of the variation in ROA.
+Adjusted R² = 0.0816: After adjusting for predictors, only about 8% of variation is explained.
+F-statistic (p = 0.161): The overall model is not statistically significant.
+
+Model 6: 
+The Interaction Model
+This is the most advanced model. It asks: "Does the effect of independence depend on*how many meetings are held?" For example, maybe independence only helps if the committee also meets a lot.
+
+```{r model-6}
+m6 <- lm(ROA ~ Board_Size + Indep_Percent * Many_Meetings, data = df_clean)
+summary(m6)
+```
+Interpretation:
+Intercept (33.33, p = 0.252):
+Represents the estimated ROA when all predictors are zero — mainly a baseline value, not practically meaningful.
+Board_Size (−0.27, p = 0.609):
+Shows a small negative but insignificant effect — board size does not significantly impact ROA.
+Indep_Percent (−0.46, p = 0.380):
+Indicates a negative but statistically insignificant relationship — a higher percentage of independent directors alone is not linked to higher profitability.
+Many_Meetings (−42.92, p = 0.163):
+Firms with more than 4 audit meetings tend to have a lower ROA, though the effect is not significant.
+Interaction (Indep_Percent × Many_Meetings = 0.79, p = 0.194):
+The positive interaction term suggests that when audit meetings are frequent, having a higher percentage of independent directors slightly improves ROA, but this effect is not statistically significant.
+
+Model Fit:
+R² = 0.138: About 13.8% of the variation in ROA is explained by the model.
+Adjusted R² ≈ 0: After adjusting for the number of predictors, the model explains almost no variation.
+F-statistic (p = 0.425): The overall model is not statistically significant.
+```{r}
+library(car)
+library(lmtest)
+vif(m3)
+```
+All VIF values (1.23–1.34) are well below 5, indicating no multicollinearity among the independent variables.
+Hence, the model’s estimates are statistically stable and reliable.
+```{r}
+bptest(m3)
+```
+
+The Breusch-Pagan test checks for heteroskedasticity (unequal variance of residuals).
+Here, BP = 3.05 and p-value = 0.3833, which is greater than 0.05, indicating no significant heteroskedasticity.
+```{r}
+dwtest(m3)
+```
+The Durbin-Watson test checks for autocorrelation (correlation among residuals).
+Here, DW = 2.62 with a p-value = 0.9478, which is much greater than 0.05, indicating no positive autocorrelation.
+
+
+SUMMARY 
+Overall, the models indicate that:
+Corporate governance variables (board size, independence, and audit meetings) have limited explanatory power for firm profitability.
+Only audit committee activity occasionally shows a meaningful (negative) association.
+The low R² values across all models suggest that other firm-level or external factors likely play a much larger role in determining profitability (ROA).
